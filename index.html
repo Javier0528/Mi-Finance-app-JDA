@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance App - Demo Estable</title>
+    
+    <!-- Dependencias -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs/plugin/utc.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs/plugin/timezone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs/locale/es.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
+        .sidebar-link { transition: background-color 0.2s, color 0.2s; }
+        .sidebar-link:hover { background-color: #374151; }
+        .sidebar-link.active { background-color: #3B82F6; color: white; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-50">
+
+    <!-- Vista de Autenticación -->
+    <div id="auth-view" class="w-full min-h-screen flex items-center justify-center">
+        <div class="w-full max-w-md">
+            <form id="login-form" class="bg-gray-800 p-8 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-bold text-center mb-2">Bienvenido a Finance</h2>
+                <p class="text-center text-gray-400 mb-6">Usa las credenciales de prueba para continuar.</p>
+                <div id="login-error" class="text-red-400 text-center mb-4 hidden"></div>
+                <div class="mb-4">
+                    <label for="login-email" class="block mb-2">Email de Prueba</label>
+                    <input type="email" id="login-email" value="test@test.com" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required>
+                </div>
+                <div class="mb-6">
+                    <label for="login-password" class="block mb-2">Contraseña de Prueba</label>
+                    <input type="password" id="login-password" value="123456" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Entrar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Vista Principal de la Aplicación -->
+    <div id="app-view" class="hidden w-full h-screen">
+        <div class="flex w-full h-screen">
+            <aside class="w-64 bg-gray-800 p-4 flex-shrink-0 flex flex-col">
+                <div class="text-2xl font-bold text-white mb-8">Finance</div>
+                <nav class="flex flex-col space-y-2">
+                    <a href="#dashboard" id="nav-dashboard" class="sidebar-link active flex items-center p-2 rounded-lg"><i data-lucide="layout-dashboard" class="mr-3"></i> Dashboard</a>
+                    <a href="#transactions" id="nav-transactions" class="sidebar-link flex items-center p-2 rounded-lg"><i data-lucide="arrow-right-left" class="mr-3"></i> Transacciones</a>
+                    <a href="#accounts" id="nav-accounts" class="sidebar-link flex items-center p-2 rounded-lg"><i data-lucide="landmark" class="mr-3"></i> Cuentas</a>
+                </nav>
+                <div class="mt-auto">
+                    <div class="text-xs text-gray-400 mb-2">
+                        <p>Usuario:</p>
+                        <p id="userEmailDisplay" class="break-all font-semibold"></p>
+                    </div>
+                    <button id="logout-button" class="w-full flex items-center justify-center p-2 rounded-lg bg-red-600 hover:bg-red-700 text-white"><i data-lucide="log-out" class="mr-2 h-4 w-4"></i> Cerrar Sesión</button>
+                </div>
+            </aside>
+            <main class="flex-1 p-6 overflow-y-auto">
+                <div id="view-dashboard" class="view">
+                    <div class="flex justify-between items-center mb-6"><h1 class="text-3xl font-bold">Dashboard Mensual</h1><div class="flex items-center space-x-4"><button id="prev-month" class="p-2 bg-gray-700 rounded-full hover:bg-gray-600"><i data-lucide="chevron-left"></i></button><span id="current-month-display" class="text-xl font-semibold w-48 text-center"></span><button id="next-month" class="p-2 bg-gray-700 rounded-full hover:bg-gray-600"><i data-lucide="chevron-right"></i></button></div></div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"><div class="bg-gray-800 p-6 rounded-lg"><h2 class="text-gray-400 mb-2">Ingresos</h2><p id="summary-income" class="text-3xl font-bold text-green-400"></p></div><div class="bg-gray-800 p-6 rounded-lg"><h2 class="text-gray-400 mb-2">Gastos</h2><p id="summary-expense" class="text-3xl font-bold text-red-400"></p></div><div class="bg-gray-800 p-6 rounded-lg"><h2 class="text-gray-400 mb-2">Flujo de Efectivo</h2><p id="summary-flow" class="text-3xl font-bold text-blue-400"></p></div></div>
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6"><div class="lg:col-span-3 bg-gray-800 p-6 rounded-lg"><h2 class="text-xl font-semibold mb-4">Gastos por Categoría</h2><canvas id="category-chart"></canvas></div><div class="lg:col-span-2 bg-gray-800 p-6 rounded-lg"><h2 class="text-xl font-semibold mb-4">Últimas Transacciones</h2><div id="latest-transactions-list" class="space-y-4"></div></div></div>
+                </div>
+                <div id="view-transactions" class="view hidden"><h1 class="text-3xl font-bold mb-6">Historial de Transacciones</h1><div class="bg-gray-800 p-4 rounded-lg"><table class="w-full text-left"><thead><tr class="border-b border-gray-700"><th class="p-4">Fecha</th><th class="p-4">Descripción</th><th class="p-4">Cuenta</th><th class="p-4">Categoría</th><th class="p-4 text-right">Monto</th><th class="p-4 text-center">Acciones</th></tr></thead><tbody id="transactions-table-body"></tbody></table></div></div>
+                <div id="view-accounts" class="view hidden"><h1 class="text-3xl font-bold mb-6">Mis Cuentas</h1><div id="accounts-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Botón Flotante y Modales -->
+    <button id="fab" class="hidden fixed bottom-8 right-8 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-lg"><i data-lucide="plus" class="h-6 w-6"></i></button>
+    <div id="transaction-modal" class="hidden fixed inset-0 modal-backdrop items-center justify-center overflow-y-auto py-8"><div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md m-4"><h2 id="transaction-modal-title" class="text-2xl font-bold mb-6"></h2><form id="transaction-form"><input type="hidden" id="transaction-id"><div class="mb-4"><label class="block mb-2">Tipo</label><select id="transaction-type" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required><option value="Gasto">Gasto</option><option value="Ingreso">Ingreso</option></select></div><div class="mb-4"><label class="block mb-2">Descripción</label><input type="text" id="transaction-description" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required></div><div class="mb-4"><label class="block mb-2">Monto</label><input type="number" id="transaction-amount" step="0.01" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required></div><div class="mb-4"><label class="block mb-2">Fecha</label><input type="date" id="transaction-date" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required></div><div class="mb-4"><label class="block mb-2">Cuenta</label><select id="transaction-account" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required></select></div><div class="mb-4"><label class="block mb-2">Categoría</label><select id="transaction-category" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required></select></div><div class="flex justify-end space-x-4 mt-8"><button type="button" id="cancel-transaction" class="px-4 py-2 bg-gray-600 rounded hover:bg-gray-500">Cancelar</button><button type="submit" class="px-4 py-2 bg-blue-600 rounded hover:bg-blue-500">Guardar</button></div></form></div></div>
+    <div id="account-modal" class="hidden fixed inset-0 modal-backdrop items-center justify-center overflow-y-auto py-8"><div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md m-4"><h2 id="account-modal-title" class="text-2xl font-bold mb-6"></h2><form id="account-form"><input type="hidden" id="account-id"><div class="mb-4"><label class="block mb-2">Nombre de la Cuenta</label><input type="text" id="account-name" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required></div><div class="mb-4"><label class="block mb-2">Tipo de Cuenta</label><select id="account-type" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required><option value="Cuenta de Débito">Cuenta de Débito</option><option value="Tarjeta de Crédito">Tarjeta de Crédito</option><option value="Efectivo">Efectivo</option><option value="Inversiones">Inversiones</option></select></div><div id="account-specific-fields"></div><div class="flex justify-end space-x-4 mt-8"><button type="button" id="cancel-account" class="px-4 py-2 bg-gray-600 rounded hover:bg-gray-500">Cancelar</button><button type="submit" class="px-4 py-2 bg-blue-600 rounded hover:bg-blue-500">Guardar</button></div></form></div></div>
+
+    <script type="module">
+    document.addEventListener('DOMContentLoaded', () => {
+        // =================================================================
+        // ESTADO GLOBAL Y CONFIGURACIÓN
+        // =================================================================
+        const state = { currentUser: null, currentView: 'dashboard', accounts: [], transactions: [], categories: [], currentDate: dayjs(), categoryChart: null };
+        const TEST_USER = { email: 'test@test.com', password: '123456', uid: 'test-user-uid-12345' };
+
+        dayjs.locale('es');
+        dayjs.extend(dayjs_plugin_utc);
+        dayjs.extend(dayjs_plugin_timezone);
+
+        // =================================================================
+        // SELECTORES DEL DOM
+        // =================================================================
+        const authView = document.getElementById('auth-view');
+        const appView = document.getElementById('app-view');
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const fab = document.getElementById('fab');
+        const transactionModal = document.getElementById('transaction-modal');
+        const accountModal = document.getElementById('account-modal');
+
+        // =================================================================
+        // LÓGICA DE VISUALIZACIÓN
+        // =================================================================
+        function showLoginScreen() {
+            appView.style.display = 'none';
+            fab.classList.add('hidden');
+            authView.style.display = 'flex';
+        }
+
+        function showAppScreen(user) {
+            state.currentUser = user;
+            document.getElementById('userEmailDisplay').textContent = user.email;
+            authView.style.display = 'none';
+            appView.style.display = 'block';
+            fab.classList.remove('hidden');
+            
+            loadDatabase();
+            renderAll();
+        }
+
+        // =================================================================
+        // LÓGICA DE BASE DE DATOS (LocalStorage)
+        // =================================================================
+        function loadDatabase() { const db = localStorage.getItem(state.currentUser.uid); if (db) { const p = JSON.parse(db); state.accounts = p.accounts || []; state.transactions = p.transactions || []; state.categories = p.categories || []; } else { seedInitialData(); } }
+        function saveDatabase() { localStorage.setItem(state.currentUser.uid, JSON.stringify({ accounts: state.accounts, transactions: state.transactions, categories: state.categories })); }
+        function seedInitialData() { state.categories = [{ id: crypto.randomUUID(), name: "Comida" }, { id: crypto.randomUUID(), name: "Transporte" }, { id: crypto.randomUUID(), name: "Hogar" }, { id: crypto.randomUUID(), name: "Entretenimiento" }, { id: crypto.randomUUID(), name: "Salud" }, { id: crypto.randomUUID(), name: "Nómina" }]; const dA = { id: crypto.randomUUID(), name: "Cuenta de Nómina", type: "Cuenta de Débito", balance: 15000 }; const cA = { id: crypto.randomUUID(), name: "Tarjeta Oro", type: "Tarjeta de Crédito", limit: 50000, corte: 15, pago: 5 }; state.accounts = [dA, cA]; state.transactions = [{ id: crypto.randomUUID(), description: "Depósito de Quincena", amount: 7500, type: "Ingreso", date: dayjs().subtract(1, 'day').toISOString(), accountId: dA.id, accountName: dA.name, category: "Nómina" }, { id: crypto.randomUUID(), description: "Supermercado", amount: 1250.50, type: "Gasto", date: dayjs().subtract(2, 'day').toISOString(), accountId: cA.id, accountName: cA.name, category: "Hogar" }]; saveDatabase(); }
+        
+        // =================================================================
+        // LÓGICA DE RENDERIZADO
+        // =================================================================
+        function renderAll() { state.transactions.sort((a, b) => new Date(b.date) - new Date(a.date)); if (state.currentView === 'dashboard') renderDashboard(); if (state.currentView === 'transactions') renderTransactions(); if (state.currentView === 'accounts') renderAccounts(); updateCategoryDropdowns(); updateAccountDropdowns(); }
+        function formatCurrency(v) { return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v); }
+        function renderDashboard() { const s = state.currentDate.startOf('month'), e = state.currentDate.endOf('month'); document.getElementById('current-month-display').textContent = state.currentDate.format('MMMM YYYY'); const mT = state.transactions.filter(t => dayjs(t.date).isAfter(s) && dayjs(t.date).isBefore(e)); const i = mT.filter(t => t.type === 'Ingreso').reduce((sum, t) => sum + t.amount, 0); const ex = mT.filter(t => t.type === 'Gasto').reduce((sum, t) => sum + t.amount, 0); document.getElementById('summary-income').textContent = formatCurrency(i); document.getElementById('summary-expense').textContent = formatCurrency(ex); document.getElementById('summary-flow').textContent = formatCurrency(i - ex); renderCategoryChart(mT); renderLatestTransactions(state.transactions.slice(0, 5)); }
+        function renderCategoryChart(ts) { const d = ts.filter(t => t.type === 'Gasto').reduce((a, t) => { a[t.category] = (a[t.category] || 0) + t.amount; return a; }, {}); const l = Object.keys(d), v = Object.values(d); const c = document.getElementById('category-chart').getContext('2d'); if (state.categoryChart) state.categoryChart.destroy(); state.categoryChart = new Chart(c, { type: 'doughnut', data: { labels: l, datasets: [{ data: v, backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'], borderColor: '#1F2937', borderWidth: 4 }] }, options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#F9FAFB' } } } } }); }
+        function renderLatestTransactions(ts) { const l = document.getElementById('latest-transactions-list'); l.innerHTML = ''; if (ts.length === 0) { l.innerHTML = '<p class="text-gray-400">No hay transacciones.</p>'; return; } ts.forEach(t => { const e = document.createElement('div'); e.className = 'flex justify-between items-center'; const aC = t.type === 'Ingreso' ? 'text-green-400' : 'text-red-400'; e.innerHTML = `<div><p class="font-semibold">${t.description}</p><p class="text-sm text-gray-400">${t.category}</p></div><p class="font-bold ${aC}">${formatCurrency(t.amount)}</p>`; l.appendChild(e); }); }
+        function renderTransactions() { const tB = document.getElementById('transactions-table-body'); tB.innerHTML = ''; if (state.transactions.length === 0) { tB.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-gray-400">No hay transacciones.</td></tr>'; return; } state.transactions.forEach(t => { const r = document.createElement('tr'); r.className = 'border-b border-gray-700 hover:bg-gray-700/50'; const aC = t.type === 'Ingreso' ? 'text-green-400' : 'text-red-400'; r.innerHTML = `<td class="p-4">${dayjs(t.date).format('DD/MM/YYYY')}</td><td class="p-4">${t.description}</td><td class="p-4">${t.accountName}</td><td class="p-4">${t.category}</td><td class="p-4 text-right font-semibold ${aC}">${formatCurrency(t.amount)}</td><td class="p-4 text-center"><button class="edit-transaction p-1 text-gray-400 hover:text-white" data-id="${t.id}"><i data-lucide="pencil" class="h-4 w-4"></i></button><button class="delete-transaction p-1 text-gray-400 hover:text-red-400" data-id="${t.id}"><i data-lucide="trash-2" class="h-4 w-4"></i></button></td>`; tB.appendChild(r); }); lucide.createIcons(); }
+        function renderAccounts() { const lE = document.getElementById('accounts-list'); lE.innerHTML = ''; if (state.accounts.length === 0) { lE.innerHTML = '<p class="text-gray-400 col-span-full text-center">No hay cuentas.</p>'; return; } state.accounts.forEach(a => { const c = document.createElement('div'); c.className = 'bg-gray-800 p-6 rounded-lg'; let d = ''; if (a.type === 'Tarjeta de Crédito') { const spent = state.transactions.filter(t => t.accountId === a.id && t.type === 'Gasto').reduce((sum, t) => sum + t.amount, 0); const available = (a.limit || 0) - spent; d = `<div class="mt-4 space-y-2"><div class="flex justify-between text-sm"><span class="text-gray-400">Gastado:</span> <span class="font-medium text-red-400">${formatCurrency(spent)}</span></div><div class="flex justify-between text-sm"><span class="text-gray-400">Disponible:</span> <span class="font-medium text-green-400">${formatCurrency(available)}</span></div><div class="flex justify-between text-sm border-t border-gray-700 pt-2 mt-2"><span class="text-gray-400">Límite:</span> <span class="font-medium">${formatCurrency(a.limit || 0)}</span></div></div>`; } else { d = `<p class="text-3xl font-bold text-blue-400 mt-4">${formatCurrency(a.balance || 0)}</p><p class="text-sm text-gray-400">Saldo Actual</p>`; } c.innerHTML = `<div class="flex justify-between items-start"><div><h3 class="text-xl font-bold">${a.name}</h3><p class="text-sm text-gray-400 mb-4">${a.type}</p></div><div><button class="edit-account p-1 text-gray-400 hover:text-white" data-id="${a.id}"><i data-lucide="pencil" class="h-4 w-4"></i></button><button class="delete-account p-1 text-gray-400 hover:text-red-400" data-id="${a.id}"><i data-lucide="trash-2" class="h-4 w-4"></i></button></div></div><div class="flex-grow flex flex-col justify-end">${d}</div>`; lE.appendChild(c); }); lucide.createIcons(); }
+        function updateCategoryDropdowns() { const s = document.getElementById('transaction-category'); if (!s) return; s.innerHTML = ''; state.categories.forEach(c => { const o = document.createElement('option'); o.value = c.name; o.textContent = c.name; s.appendChild(o); }); }
+        function updateAccountDropdowns() { const s = document.getElementById('transaction-account'); if (!s) return; s.innerHTML = ''; state.accounts.forEach(a => { const o = document.createElement('option'); o.value = a.id; o.textContent = a.name; s.appendChild(o); }); }
+        
+        // =================================================================
+        // MANEJO DE EVENTOS Y MODALES
+        // =================================================================
+        function openTransactionModal(tId = null) { const m = document.getElementById('transaction-modal'), f = m.querySelector('#transaction-form'); f.reset(); updateAccountDropdowns(); updateCategoryDropdowns(); f.querySelector('#transaction-id').value = ''; if (tId) { const t = state.transactions.find(t => t.id === tId); m.querySelector('#transaction-modal-title').textContent = 'Editar Transacción'; f.querySelector('#transaction-id').value = t.id; f.querySelector('#transaction-type').value = t.type; f.querySelector('#transaction-description').value = t.description; f.querySelector('#transaction-amount').value = t.amount; f.querySelector('#transaction-date').value = dayjs(t.date).format('YYYY-MM-DD'); f.querySelector('#transaction-account').value = t.accountId; f.querySelector('#transaction-category').value = t.category; } else { m.querySelector('#transaction-modal-title').textContent = 'Nueva Transacción'; f.querySelector('#transaction-date').value = dayjs().format('YYYY-MM-DD'); } m.style.display = 'flex'; }
+        function closeTransactionModal() { document.getElementById('transaction-modal').style.display = 'none'; }
+        function openAccountModal(aId = null) { const m = document.getElementById('account-modal'), f = m.querySelector('#account-form'); f.reset(); f.querySelector('#account-id').value = ''; if (aId) { const a = state.accounts.find(a => a.id === aId); m.querySelector('#account-modal-title').textContent = 'Editar Cuenta'; f.querySelector('#account-id').value = a.id; f.querySelector('#account-name').value = a.name; f.querySelector('#account-type').value = a.type; updateAccountSpecificFields(a.type, a); } else { m.querySelector('#account-modal-title').textContent = 'Nueva Cuenta'; updateAccountSpecificFields('Cuenta de Débito'); } m.style.display = 'flex'; }
+        function closeAccountModal() { document.getElementById('account-modal').style.display = 'none'; }
+        function updateAccountSpecificFields(type, data = {}) { const c = document.getElementById('account-specific-fields'); if (type === 'Tarjeta de Crédito') { c.innerHTML = `<div class="mb-4"><label class="block mb-2">Límite de Crédito</label><input type="number" id="account-limit" class="w-full p-2 bg-gray-700 rounded" value="${data.limit || ''}"></div><div class="grid grid-cols-2 gap-4"><div><label class="block mb-2">Día de Corte</label><input type="number" id="account-corte" class="w-full p-2 bg-gray-700 rounded" min="1" max="31" value="${data.corte || ''}"></div><div><label class="block mb-2">Día de Pago</label><input type="number" id="account-pago" class="w-full p-2 bg-gray-700 rounded" min="1" max="31" value="${data.pago || ''}"></div></div>`; } else { c.innerHTML = `<div class="mb-4"><label class="block mb-2">Saldo Inicial</label><input type="number" id="account-balance" class="w-full p-2 bg-gray-700 rounded" value="${data.balance || 0}"></div>`; } }
+
+        function handleTransactionSubmit(e) { e.preventDefault(); const form = e.target; const aId = form.querySelector('#transaction-account').value; const accIndex = state.accounts.findIndex(a => a.id === aId); if (accIndex === -1) return; const amount = parseFloat(form.querySelector('#transaction-amount').value); const type = form.querySelector('#transaction-type').value; const tId = form.querySelector('#transaction-id').value; if (tId) { const oldTx = state.transactions.find(t => t.id === tId); const oldAccIndex = state.accounts.findIndex(a => a.id === oldTx.accountId); if (oldAccIndex !== -1 && state.accounts[oldAccIndex].type === 'Cuenta de Débito') { if (oldTx.type === 'Ingreso') state.accounts[oldAccIndex].balance -= oldTx.amount; else state.accounts[oldAccIndex].balance += oldTx.amount; } } if (state.accounts[accIndex].type === 'Cuenta de Débito') { if (type === 'Ingreso') state.accounts[accIndex].balance += amount; else state.accounts[accIndex].balance -= amount; } const acc = state.accounts[accIndex]; const tD = { type, description: form.querySelector('#transaction-description').value, amount, date: dayjs(form.querySelector('#transaction-date').value).toISOString(), accountId: aId, accountName: acc.name, category: form.querySelector('#transaction-category').value }; if (tId) { const txIndex = state.transactions.findIndex(t => t.id === tId); state.transactions[txIndex] = { ...tD, id: tId }; } else { tD.id = crypto.randomUUID(); state.transactions.push(tD); } saveDatabase(); renderAll(); closeTransactionModal(); }
+
+        // =================================================================
+        // INICIALIZACIÓN DE LA APLICACIÓN
+        // =================================================================
+        
+        loginForm.addEventListener('submit', (e) => { e.preventDefault(); const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value; if (email === TEST_USER.email && password === TEST_USER.password) { loginError.classList.add('hidden'); showAppScreen(TEST_USER); } else { loginError.textContent = "Credenciales incorrectas."; loginError.classList.remove('hidden'); } });
+        document.getElementById('logout-button').addEventListener('click', () => { state.currentUser = null; showLoginScreen(); });
+        document.querySelector('nav').addEventListener('click', (e) => { e.preventDefault(); const l = e.target.closest('a'); if (!l) return; const vI = l.id.replace('nav-', 'view-'); document.querySelectorAll('.view').forEach(v => v.classList.add('hidden')); document.getElementById(vI).classList.remove('hidden'); document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active')); l.classList.add('active'); state.currentView = l.id.replace('nav-', ''); renderAll(); });
+        document.getElementById('prev-month').addEventListener('click', () => { state.currentDate = state.currentDate.subtract(1, 'month'); renderDashboard(); });
+        document.getElementById('next-month').addEventListener('click', () => { state.currentDate = state.currentDate.add(1, 'month'); renderDashboard(); });
+        fab.addEventListener('click', () => { if (state.currentView === 'accounts') openAccountModal(); else openTransactionModal(); });
+        transactionModal.querySelector('#cancel-transaction').addEventListener('click', closeTransactionModal);
+        transactionModal.querySelector('#transaction-form').addEventListener('submit', handleTransactionSubmit);
+        accountModal.querySelector('#cancel-account').addEventListener('click', closeAccountModal);
+        accountModal.querySelector('#account-type').addEventListener('change', (e) => updateAccountSpecificFields(e.target.value));
+        accountModal.querySelector('#account-form').addEventListener('submit', (e) => { e.preventDefault(); const type = accountModal.querySelector('#account-type').value; const aD = { name: accountModal.querySelector('#account-name').value, type: type }; if (type === 'Tarjeta de Crédito') { aD.limit = parseFloat(accountModal.querySelector('#account-limit').value) || 0; aD.corte = parseInt(accountModal.querySelector('#account-corte').value) || 0; aD.pago = parseInt(accountModal.querySelector('#account-pago').value) || 0; } else { aD.balance = parseFloat(accountModal.querySelector('#account-balance').value) || 0; } const aId = accountModal.querySelector('#account-id').value; if (aId) { const i = state.accounts.findIndex(a => a.id === aId); state.accounts[i] = { ...aD, id: aId }; } else { aD.id = crypto.randomUUID(); state.accounts.push(aD); } saveDatabase(); renderAll(); closeAccountModal(); });
+        appView.addEventListener('click', (e) => { const eT = e.target.closest('.edit-transaction'), dT = e.target.closest('.delete-transaction'), eA = e.target.closest('.edit-account'), dA = e.target.closest('.delete-account'); if (eT) openTransactionModal(eT.dataset.id); if (dT) { state.transactions = state.transactions.filter(t => t.id !== dT.dataset.id); saveDatabase(); renderAll(); } if (eA) openAccountModal(eA.dataset.id); if (dA) { state.accounts = state.accounts.filter(a => a.id !== dA.dataset.id); saveDatabase(); renderAll(); } });
+
+        showLoginScreen();
+        lucide.createIcons();
+    });
+    </script>
+</body>
+</html>
