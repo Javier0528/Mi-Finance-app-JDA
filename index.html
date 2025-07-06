@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance App - Demo Estable</title>
+    <title>Finance App</title>
     
     <!-- Dependencias -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -27,19 +27,40 @@
     <!-- Vista de Autenticación -->
     <div id="auth-view" class="w-full min-h-screen flex items-center justify-center">
         <div class="w-full max-w-md">
+            <!-- Formulario de Login -->
             <form id="login-form" class="bg-gray-800 p-8 rounded-lg shadow-lg">
-                <h2 class="text-2xl font-bold text-center mb-2">Bienvenido a Finance</h2>
-                <p class="text-center text-gray-400 mb-6">Usa las credenciales de prueba para continuar.</p>
+                <h2 class="text-2xl font-bold text-center mb-6">Iniciar Sesión</h2>
                 <div id="login-error" class="text-red-400 text-center mb-4 hidden"></div>
                 <div class="mb-4">
-                    <label for="login-email" class="block mb-2">Email de Prueba</label>
-                    <input type="email" id="login-email" value="test@test.com" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required>
+                    <label for="login-email" class="block mb-2">Email</label>
+                    <input type="email" id="login-email" class="w-full p-2 bg-gray-700 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
                 </div>
                 <div class="mb-6">
-                    <label for="login-password" class="block mb-2">Contraseña de Prueba</label>
-                    <input type="password" id="login-password" value="123456" class="w-full p-2 bg-gray-700 rounded border border-gray-600" required>
+                    <label for="login-password" class="block mb-2">Contraseña</label>
+                    <input type="password" id="login-password" class="w-full p-2 bg-gray-700 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
                 </div>
                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Entrar</button>
+                <p class="text-center mt-4">
+                    ¿No tienes cuenta? <a href="#" id="show-register" class="text-blue-400 hover:underline">Regístrate</a>
+                </p>
+            </form>
+
+            <!-- Formulario de Registro -->
+            <form id="register-form" class="bg-gray-800 p-8 rounded-lg shadow-lg hidden">
+                <h2 class="text-2xl font-bold text-center mb-6">Crear Cuenta</h2>
+                <div id="register-error" class="text-red-400 text-center mb-4 hidden"></div>
+                <div class="mb-4">
+                    <label for="register-email" class="block mb-2">Email</label>
+                    <input type="email" id="register-email" class="w-full p-2 bg-gray-700 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="mb-6">
+                    <label for="register-password" class="block mb-2">Contraseña (mín. 6 caracteres)</label>
+                    <input type="password" id="register-password" class="w-full p-2 bg-gray-700 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Registrarme</button>
+                <p class="text-center mt-4">
+                    ¿Ya tienes cuenta? <a href="#" id="show-login" class="text-blue-400 hover:underline">Inicia Sesión</a>
+                </p>
             </form>
         </div>
     </div>
@@ -82,11 +103,32 @@
     <script type="module">
     document.addEventListener('DOMContentLoaded', () => {
         // =================================================================
+        // CONFIGURACIÓN DE FIREBASE
+        // =================================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyAGN_V-iXrNNeW8VvVX5uRHp_N7QEvIBV4",
+            authDomain: "finance-app-de-javier.firebaseapp.com",
+            projectId: "finance-app-de-javier",
+            storageBucket: "finance-app-de-javier.appspot.com",
+            messagingSenderId: "27767063795",
+            appId: "1:27767063795:web:0a4889fedf848807afa386"
+        };
+
+        // =================================================================
+        // INICIALIZACIÓN DE FIREBASE Y SERVICIOS
+        // =================================================================
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, doc, getDoc, setDoc, addDoc, onSnapshot, query, orderBy, deleteDoc, updateDoc, Timestamp, writeBatch, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // =================================================================
         // ESTADO GLOBAL Y CONFIGURACIÓN
         // =================================================================
-        const state = { currentUser: null, currentView: 'dashboard', accounts: [], transactions: [], categories: [], currentDate: dayjs(), categoryChart: null };
-        const TEST_USER = { email: 'test@test.com', password: '123456', uid: 'test-user-uid-12345' };
-
+        const state = { currentUser: null, currentView: 'dashboard', accounts: [], transactions: [], categories: [], unsubs: [], categoryChart: null, currentDate: dayjs() };
         dayjs.locale('es');
         dayjs.extend(dayjs_plugin_utc);
         dayjs.extend(dayjs_plugin_timezone);
@@ -96,11 +138,7 @@
         // =================================================================
         const authView = document.getElementById('auth-view');
         const appView = document.getElementById('app-view');
-        const loginForm = document.getElementById('login-form');
-        const loginError = document.getElementById('login-error');
         const fab = document.getElementById('fab');
-        const transactionModal = document.getElementById('transaction-modal');
-        const accountModal = document.getElementById('account-modal');
 
         // =================================================================
         // LÓGICA DE VISUALIZACIÓN
@@ -109,6 +147,8 @@
             appView.style.display = 'none';
             fab.classList.add('hidden');
             authView.style.display = 'flex';
+            state.unsubs.forEach(unsub => unsub());
+            state.unsubs = [];
         }
 
         function showAppScreen(user) {
@@ -118,59 +158,125 @@
             appView.style.display = 'block';
             fab.classList.remove('hidden');
             
-            loadDatabase();
-            renderAll();
+            checkAndSeedInitialData(user.uid);
+            setupRealtimeListeners(user.uid);
         }
 
         // =================================================================
-        // LÓGICA DE BASE DE DATOS (LocalStorage)
+        // LÓGICA DE BASE DE DATOS (Firestore)
         // =================================================================
-        function loadDatabase() { const db = localStorage.getItem(state.currentUser.uid); if (db) { const p = JSON.parse(db); state.accounts = p.accounts || []; state.transactions = p.transactions || []; state.categories = p.categories || []; } else { seedInitialData(); } }
-        function saveDatabase() { localStorage.setItem(state.currentUser.uid, JSON.stringify({ accounts: state.accounts, transactions: state.transactions, categories: state.categories })); }
-        function seedInitialData() { state.categories = [{ id: crypto.randomUUID(), name: "Comida" }, { id: crypto.randomUUID(), name: "Transporte" }, { id: crypto.randomUUID(), name: "Hogar" }, { id: crypto.randomUUID(), name: "Entretenimiento" }, { id: crypto.randomUUID(), name: "Salud" }, { id: crypto.randomUUID(), name: "Nómina" }]; const dA = { id: crypto.randomUUID(), name: "Cuenta de Nómina", type: "Cuenta de Débito", balance: 15000 }; const cA = { id: crypto.randomUUID(), name: "Tarjeta Oro", type: "Tarjeta de Crédito", limit: 50000, corte: 15, pago: 5 }; state.accounts = [dA, cA]; state.transactions = [{ id: crypto.randomUUID(), description: "Depósito de Quincena", amount: 7500, type: "Ingreso", date: dayjs().subtract(1, 'day').toISOString(), accountId: dA.id, accountName: dA.name, category: "Nómina" }, { id: crypto.randomUUID(), description: "Supermercado", amount: 1250.50, type: "Gasto", date: dayjs().subtract(2, 'day').toISOString(), accountId: cA.id, accountName: cA.name, category: "Hogar" }]; saveDatabase(); }
+        async function checkAndSeedInitialData(userId) {
+            const statusRef = doc(db, `users/${userId}/status/config`);
+            const statusSnap = await getDoc(statusRef);
+
+            if (!statusSnap.exists() || !statusSnap.data().initialized) {
+                const batch = writeBatch(db);
+                const categories = ["Comida", "Transporte", "Hogar", "Entretenimiento", "Salud", "Nómina"];
+                categories.forEach(name => { const catRef = doc(collection(db, `users/${userId}/categories`)); batch.set(catRef, { name }); });
+                const debitRef = doc(collection(db, `users/${userId}/accounts`));
+                batch.set(debitRef, { name: "Cuenta de Nómina", type: "Cuenta de Débito", balance: 15000 });
+                const creditRef = doc(collection(db, `users/${userId}/accounts`));
+                batch.set(creditRef, { name: "Tarjeta Oro", type: "Tarjeta de Crédito", limit: 50000, corte: 15, pago: 5 });
+                batch.set(statusRef, { initialized: true });
+                await batch.commit();
+            }
+        }
         
+        function setupRealtimeListeners(userId) {
+            state.unsubs.forEach(unsub => unsub());
+            state.unsubs = [];
+
+            const unsubAccounts = onSnapshot(query(collection(db, `users/${userId}/accounts`)), (snapshot) => { state.accounts = snapshot.docs.map(d => ({ id: d.id, ...d.data() })); renderAll(); });
+            const unsubTransactions = onSnapshot(query(collection(db, `users/${userId}/transactions`), orderBy("date", "desc")), (snapshot) => { state.transactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() })); renderAll(); });
+            const unsubCategories = onSnapshot(query(collection(db, `users/${userId}/categories`)), (snapshot) => { state.categories = snapshot.docs.map(d => ({ id: d.id, ...d.data() })); renderAll(); });
+            
+            state.unsubs.push(unsubAccounts, unsubTransactions, unsubCategories);
+        }
+
         // =================================================================
         // LÓGICA DE RENDERIZADO
         // =================================================================
-        function renderAll() { state.transactions.sort((a, b) => new Date(b.date) - new Date(a.date)); if (state.currentView === 'dashboard') renderDashboard(); if (state.currentView === 'transactions') renderTransactions(); if (state.currentView === 'accounts') renderAccounts(); updateCategoryDropdowns(); updateAccountDropdowns(); }
+        function renderAll() {
+            if (!state.currentUser) return;
+            if (state.currentView === 'dashboard') renderDashboard();
+            if (state.currentView === 'transactions') renderTransactions();
+            if (state.currentView === 'accounts') renderAccounts();
+            updateCategoryDropdowns();
+            updateAccountDropdowns();
+        }
         function formatCurrency(v) { return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v); }
-        function renderDashboard() { const s = state.currentDate.startOf('month'), e = state.currentDate.endOf('month'); document.getElementById('current-month-display').textContent = state.currentDate.format('MMMM YYYY'); const mT = state.transactions.filter(t => dayjs(t.date).isAfter(s) && dayjs(t.date).isBefore(e)); const i = mT.filter(t => t.type === 'Ingreso').reduce((sum, t) => sum + t.amount, 0); const ex = mT.filter(t => t.type === 'Gasto').reduce((sum, t) => sum + t.amount, 0); document.getElementById('summary-income').textContent = formatCurrency(i); document.getElementById('summary-expense').textContent = formatCurrency(ex); document.getElementById('summary-flow').textContent = formatCurrency(i - ex); renderCategoryChart(mT); renderLatestTransactions(state.transactions.slice(0, 5)); }
-        function renderCategoryChart(ts) { const d = ts.filter(t => t.type === 'Gasto').reduce((a, t) => { a[t.category] = (a[t.category] || 0) + t.amount; return a; }, {}); const l = Object.keys(d), v = Object.values(d); const c = document.getElementById('category-chart').getContext('2d'); if (state.categoryChart) state.categoryChart.destroy(); state.categoryChart = new Chart(c, { type: 'doughnut', data: { labels: l, datasets: [{ data: v, backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'], borderColor: '#1F2937', borderWidth: 4 }] }, options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#F9FAFB' } } } } }); }
-        function renderLatestTransactions(ts) { const l = document.getElementById('latest-transactions-list'); l.innerHTML = ''; if (ts.length === 0) { l.innerHTML = '<p class="text-gray-400">No hay transacciones.</p>'; return; } ts.forEach(t => { const e = document.createElement('div'); e.className = 'flex justify-between items-center'; const aC = t.type === 'Ingreso' ? 'text-green-400' : 'text-red-400'; e.innerHTML = `<div><p class="font-semibold">${t.description}</p><p class="text-sm text-gray-400">${t.category}</p></div><p class="font-bold ${aC}">${formatCurrency(t.amount)}</p>`; l.appendChild(e); }); }
-        function renderTransactions() { const tB = document.getElementById('transactions-table-body'); tB.innerHTML = ''; if (state.transactions.length === 0) { tB.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-gray-400">No hay transacciones.</td></tr>'; return; } state.transactions.forEach(t => { const r = document.createElement('tr'); r.className = 'border-b border-gray-700 hover:bg-gray-700/50'; const aC = t.type === 'Ingreso' ? 'text-green-400' : 'text-red-400'; r.innerHTML = `<td class="p-4">${dayjs(t.date).format('DD/MM/YYYY')}</td><td class="p-4">${t.description}</td><td class="p-4">${t.accountName}</td><td class="p-4">${t.category}</td><td class="p-4 text-right font-semibold ${aC}">${formatCurrency(t.amount)}</td><td class="p-4 text-center"><button class="edit-transaction p-1 text-gray-400 hover:text-white" data-id="${t.id}"><i data-lucide="pencil" class="h-4 w-4"></i></button><button class="delete-transaction p-1 text-gray-400 hover:text-red-400" data-id="${t.id}"><i data-lucide="trash-2" class="h-4 w-4"></i></button></td>`; tB.appendChild(r); }); lucide.createIcons(); }
-        function renderAccounts() { const lE = document.getElementById('accounts-list'); lE.innerHTML = ''; if (state.accounts.length === 0) { lE.innerHTML = '<p class="text-gray-400 col-span-full text-center">No hay cuentas.</p>'; return; } state.accounts.forEach(a => { const c = document.createElement('div'); c.className = 'bg-gray-800 p-6 rounded-lg'; let d = ''; if (a.type === 'Tarjeta de Crédito') { const spent = state.transactions.filter(t => t.accountId === a.id && t.type === 'Gasto').reduce((sum, t) => sum + t.amount, 0); const available = (a.limit || 0) - spent; d = `<div class="mt-4 space-y-2"><div class="flex justify-between text-sm"><span class="text-gray-400">Gastado:</span> <span class="font-medium text-red-400">${formatCurrency(spent)}</span></div><div class="flex justify-between text-sm"><span class="text-gray-400">Disponible:</span> <span class="font-medium text-green-400">${formatCurrency(available)}</span></div><div class="flex justify-between text-sm border-t border-gray-700 pt-2 mt-2"><span class="text-gray-400">Límite:</span> <span class="font-medium">${formatCurrency(a.limit || 0)}</span></div></div>`; } else { d = `<p class="text-3xl font-bold text-blue-400 mt-4">${formatCurrency(a.balance || 0)}</p><p class="text-sm text-gray-400">Saldo Actual</p>`; } c.innerHTML = `<div class="flex justify-between items-start"><div><h3 class="text-xl font-bold">${a.name}</h3><p class="text-sm text-gray-400 mb-4">${a.type}</p></div><div><button class="edit-account p-1 text-gray-400 hover:text-white" data-id="${a.id}"><i data-lucide="pencil" class="h-4 w-4"></i></button><button class="delete-account p-1 text-gray-400 hover:text-red-400" data-id="${a.id}"><i data-lucide="trash-2" class="h-4 w-4"></i></button></div></div><div class="flex-grow flex flex-col justify-end">${d}</div>`; lE.appendChild(c); }); lucide.createIcons(); }
+        function renderDashboard() {
+            const s = state.currentDate.startOf('month'), e = state.currentDate.endOf('month');
+            document.getElementById('current-month-display').textContent = state.currentDate.format('MMMM YYYY');
+            const mT = state.transactions.filter(t => { const d = dayjs(t.date.toDate()); return d.isAfter(s) && d.isBefore(e); });
+            const i = mT.filter(t => t.type === 'Ingreso').reduce((sum, t) => sum + t.amount, 0);
+            const ex = mT.filter(t => t.type === 'Gasto').reduce((sum, t) => sum + t.amount, 0);
+            document.getElementById('summary-income').textContent = formatCurrency(i);
+            document.getElementById('summary-expense').textContent = formatCurrency(ex);
+            document.getElementById('summary-flow').textContent = formatCurrency(i - ex);
+            renderCategoryChart(mT);
+            renderLatestTransactions(state.transactions.slice(0, 5));
+        }
+        function renderCategoryChart(ts) {
+            const d = ts.filter(t => t.type === 'Gasto').reduce((a, t) => { a[t.category] = (a[t.category] || 0) + t.amount; return a; }, {});
+            const l = Object.keys(d), v = Object.values(d);
+            const c = document.getElementById('category-chart').getContext('2d');
+            if (state.categoryChart) state.categoryChart.destroy();
+            state.categoryChart = new Chart(c, { type: 'doughnut', data: { labels: l, datasets: [{ data: v, backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'], borderColor: '#1F2937', borderWidth: 4 }] }, options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#F9FAFB' } } } } });
+        }
+        function renderLatestTransactions(ts) {
+            const l = document.getElementById('latest-transactions-list');
+            l.innerHTML = '';
+            if (ts.length === 0) { l.innerHTML = '<p class="text-gray-400">No hay transacciones.</p>'; return; }
+            ts.forEach(t => { const e = document.createElement('div'); e.className = 'flex justify-between items-center'; const aC = t.type === 'Ingreso' ? 'text-green-400' : 'text-red-400'; e.innerHTML = `<div><p class="font-semibold">${t.description}</p><p class="text-sm text-gray-400">${t.category}</p></div><p class="font-bold ${aC}">${formatCurrency(t.amount)}</p>`; l.appendChild(e); });
+        }
+        function renderTransactions() {
+            const tB = document.getElementById('transactions-table-body');
+            tB.innerHTML = '';
+            if (state.transactions.length === 0) { tB.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-gray-400">No hay transacciones.</td></tr>'; return; }
+            state.transactions.forEach(t => { const r = document.createElement('tr'); r.className = 'border-b border-gray-700 hover:bg-gray-700/50'; const aC = t.type === 'Ingreso' ? 'text-green-400' : 'text-red-400'; r.innerHTML = `<td class="p-4">${dayjs(t.date.toDate()).format('DD/MM/YYYY')}</td><td class="p-4">${t.description}</td><td class="p-4">${t.accountName}</td><td class="p-4">${t.category}</td><td class="p-4 text-right font-semibold ${aC}">${formatCurrency(t.amount)}</td><td class="p-4 text-center"><button class="edit-transaction p-1 text-gray-400 hover:text-white" data-id="${t.id}"><i data-lucide="pencil" class="h-4 w-4"></i></button><button class="delete-transaction p-1 text-gray-400 hover:text-red-400" data-id="${t.id}"><i data-lucide="trash-2" class="h-4 w-4"></i></button></td>`; tB.appendChild(r); });
+            lucide.createIcons();
+        }
+        function renderAccounts() {
+            const lE = document.getElementById('accounts-list');
+            lE.innerHTML = '';
+            if (state.accounts.length === 0) { lE.innerHTML = '<p class="text-gray-400 col-span-full text-center">No hay cuentas.</p>'; return; }
+            state.accounts.forEach(a => { const c = document.createElement('div'); c.className = 'bg-gray-800 p-6 rounded-lg flex flex-col'; let d = ''; if (a.type === 'Tarjeta de Crédito') { const spent = state.transactions.filter(t => t.accountId === a.id && t.type === 'Gasto').reduce((sum, t) => sum + t.amount, 0); const available = (a.limit || 0) - spent; d = `<div class="mt-4 space-y-2"><div class="flex justify-between text-sm"><span class="text-gray-400">Gastado:</span> <span class="font-medium text-red-400">${formatCurrency(spent)}</span></div><div class="flex justify-between text-sm"><span class="text-gray-400">Disponible:</span> <span class="font-medium text-green-400">${formatCurrency(available)}</span></div><div class="flex justify-between text-sm border-t border-gray-700 pt-2 mt-2"><span class="text-gray-400">Límite:</span> <span class="font-medium">${formatCurrency(a.limit || 0)}</span></div></div>`; } else { d = `<p class="text-3xl font-bold text-blue-400 mt-4">${formatCurrency(a.balance || 0)}</p><p class="text-sm text-gray-400">Saldo Actual</p>`; } c.innerHTML = `<div class="flex justify-between items-start"><div><h3 class="text-xl font-bold">${a.name}</h3><p class="text-sm text-gray-400 mb-4">${a.type}</p></div><div><button class="edit-account p-1 text-gray-400 hover:text-white" data-id="${a.id}"><i data-lucide="pencil" class="h-4 w-4"></i></button><button class="delete-account p-1 text-gray-400 hover:text-red-400" data-id="${a.id}"><i data-lucide="trash-2" class="h-4 w-4"></i></button></div></div><div class="flex-grow flex flex-col justify-end">${d}</div>`; lE.appendChild(c); });
+            lucide.createIcons();
+        }
         function updateCategoryDropdowns() { const s = document.getElementById('transaction-category'); if (!s) return; s.innerHTML = ''; state.categories.forEach(c => { const o = document.createElement('option'); o.value = c.name; o.textContent = c.name; s.appendChild(o); }); }
         function updateAccountDropdowns() { const s = document.getElementById('transaction-account'); if (!s) return; s.innerHTML = ''; state.accounts.forEach(a => { const o = document.createElement('option'); o.value = a.id; o.textContent = a.name; s.appendChild(o); }); }
         
         // =================================================================
         // MANEJO DE EVENTOS Y MODALES
         // =================================================================
-        function openTransactionModal(tId = null) { const m = document.getElementById('transaction-modal'), f = m.querySelector('#transaction-form'); f.reset(); updateAccountDropdowns(); updateCategoryDropdowns(); f.querySelector('#transaction-id').value = ''; if (tId) { const t = state.transactions.find(t => t.id === tId); m.querySelector('#transaction-modal-title').textContent = 'Editar Transacción'; f.querySelector('#transaction-id').value = t.id; f.querySelector('#transaction-type').value = t.type; f.querySelector('#transaction-description').value = t.description; f.querySelector('#transaction-amount').value = t.amount; f.querySelector('#transaction-date').value = dayjs(t.date).format('YYYY-MM-DD'); f.querySelector('#transaction-account').value = t.accountId; f.querySelector('#transaction-category').value = t.category; } else { m.querySelector('#transaction-modal-title').textContent = 'Nueva Transacción'; f.querySelector('#transaction-date').value = dayjs().format('YYYY-MM-DD'); } m.style.display = 'flex'; }
+        function openTransactionModal(tId = null) { const m = document.getElementById('transaction-modal'), f = m.querySelector('#transaction-form'); f.reset(); updateAccountDropdowns(); updateCategoryDropdowns(); f.querySelector('#transaction-id').value = ''; if (tId) { const t = state.transactions.find(t => t.id === tId); m.querySelector('#transaction-modal-title').textContent = 'Editar Transacción'; f.querySelector('#transaction-id').value = t.id; f.querySelector('#transaction-type').value = t.type; f.querySelector('#transaction-description').value = t.description; f.querySelector('#transaction-amount').value = t.amount; f.querySelector('#transaction-date').value = dayjs(t.date.toDate()).format('YYYY-MM-DD'); f.querySelector('#transaction-account').value = t.accountId; f.querySelector('#transaction-category').value = t.category; } else { m.querySelector('#transaction-modal-title').textContent = 'Nueva Transacción'; f.querySelector('#transaction-date').value = dayjs().format('YYYY-MM-DD'); } m.style.display = 'flex'; }
         function closeTransactionModal() { document.getElementById('transaction-modal').style.display = 'none'; }
         function openAccountModal(aId = null) { const m = document.getElementById('account-modal'), f = m.querySelector('#account-form'); f.reset(); f.querySelector('#account-id').value = ''; if (aId) { const a = state.accounts.find(a => a.id === aId); m.querySelector('#account-modal-title').textContent = 'Editar Cuenta'; f.querySelector('#account-id').value = a.id; f.querySelector('#account-name').value = a.name; f.querySelector('#account-type').value = a.type; updateAccountSpecificFields(a.type, a); } else { m.querySelector('#account-modal-title').textContent = 'Nueva Cuenta'; updateAccountSpecificFields('Cuenta de Débito'); } m.style.display = 'flex'; }
         function closeAccountModal() { document.getElementById('account-modal').style.display = 'none'; }
         function updateAccountSpecificFields(type, data = {}) { const c = document.getElementById('account-specific-fields'); if (type === 'Tarjeta de Crédito') { c.innerHTML = `<div class="mb-4"><label class="block mb-2">Límite de Crédito</label><input type="number" id="account-limit" class="w-full p-2 bg-gray-700 rounded" value="${data.limit || ''}"></div><div class="grid grid-cols-2 gap-4"><div><label class="block mb-2">Día de Corte</label><input type="number" id="account-corte" class="w-full p-2 bg-gray-700 rounded" min="1" max="31" value="${data.corte || ''}"></div><div><label class="block mb-2">Día de Pago</label><input type="number" id="account-pago" class="w-full p-2 bg-gray-700 rounded" min="1" max="31" value="${data.pago || ''}"></div></div>`; } else { c.innerHTML = `<div class="mb-4"><label class="block mb-2">Saldo Inicial</label><input type="number" id="account-balance" class="w-full p-2 bg-gray-700 rounded" value="${data.balance || 0}"></div>`; } }
-
-        function handleTransactionSubmit(e) { e.preventDefault(); const form = e.target; const aId = form.querySelector('#transaction-account').value; const accIndex = state.accounts.findIndex(a => a.id === aId); if (accIndex === -1) return; const amount = parseFloat(form.querySelector('#transaction-amount').value); const type = form.querySelector('#transaction-type').value; const tId = form.querySelector('#transaction-id').value; if (tId) { const oldTx = state.transactions.find(t => t.id === tId); const oldAccIndex = state.accounts.findIndex(a => a.id === oldTx.accountId); if (oldAccIndex !== -1 && state.accounts[oldAccIndex].type === 'Cuenta de Débito') { if (oldTx.type === 'Ingreso') state.accounts[oldAccIndex].balance -= oldTx.amount; else state.accounts[oldAccIndex].balance += oldTx.amount; } } if (state.accounts[accIndex].type === 'Cuenta de Débito') { if (type === 'Ingreso') state.accounts[accIndex].balance += amount; else state.accounts[accIndex].balance -= amount; } const acc = state.accounts[accIndex]; const tD = { type, description: form.querySelector('#transaction-description').value, amount, date: dayjs(form.querySelector('#transaction-date').value).toISOString(), accountId: aId, accountName: acc.name, category: form.querySelector('#transaction-category').value }; if (tId) { const txIndex = state.transactions.findIndex(t => t.id === tId); state.transactions[txIndex] = { ...tD, id: tId }; } else { tD.id = crypto.randomUUID(); state.transactions.push(tD); } saveDatabase(); renderAll(); closeTransactionModal(); }
+        async function handleTransactionSubmit(e) { e.preventDefault(); const form = e.target; const amount = parseFloat(form.querySelector('#transaction-amount').value); const type = form.querySelector('#transaction-type').value; const accountId = form.querySelector('#transaction-account').value; const tId = form.querySelector('#transaction-id').value; try { await runTransaction(db, async (transaction) => { const accountRef = doc(db, `users/${state.currentUser.uid}/accounts/${accountId}`); const accountDoc = await transaction.get(accountRef); if (!accountDoc.exists()) { throw "La cuenta seleccionada no existe."; } const accountData = accountDoc.data(); if (accountData.type === 'Cuenta de Débito') { let newBalance = accountData.balance; if (tId) { const oldTx = state.transactions.find(t => t.id === tId); if (oldTx && oldTx.accountId === accountId) { if (oldTx.type === 'Ingreso') newBalance -= oldTx.amount; else newBalance += oldTx.amount; } } if (type === 'Ingreso') newBalance += amount; else newBalance -= amount; transaction.update(accountRef, { balance: newBalance }); } const txData = { type, description: form.querySelector('#transaction-description').value, amount, date: Timestamp.fromDate(new Date(form.querySelector('#transaction-date').value)), accountId, accountName: accountData.name, category: form.querySelector('#transaction-category').value, }; if (tId) { const txRef = doc(db, `users/${state.currentUser.uid}/transactions/${tId}`); transaction.update(txRef, txData); } else { const newTxRef = doc(collection(db, `users/${state.currentUser.uid}/transactions`)); transaction.set(newTxRef, txData); } }); closeTransactionModal(); } catch (error) { console.error("Error en la transacción: ", error); alert("Error al guardar la transacción."); } }
 
         // =================================================================
         // INICIALIZACIÓN DE LA APLICACIÓN
         // =================================================================
-        
-        loginForm.addEventListener('submit', (e) => { e.preventDefault(); const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value; if (email === TEST_USER.email && password === TEST_USER.password) { loginError.classList.add('hidden'); showAppScreen(TEST_USER); } else { loginError.textContent = "Credenciales incorrectas."; loginError.classList.remove('hidden'); } });
-        document.getElementById('logout-button').addEventListener('click', () => { state.currentUser = null; showLoginScreen(); });
+        onAuthStateChanged(auth, user => { user ? showAppScreen(user) : showLoginScreen(); });
+        document.getElementById('login-form').addEventListener('submit', (e) => { e.preventDefault(); const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value; const errorDiv = document.getElementById('login-error'); signInWithEmailAndPassword(auth, email, password).catch(err => { errorDiv.textContent = 'Error: ' + err.message; errorDiv.classList.remove('hidden'); }); });
+        document.getElementById('register-form').addEventListener('submit', (e) => { e.preventDefault(); const email = document.getElementById('register-email').value; const password = document.getElementById('register-password').value; const errorDiv = document.getElementById('register-error'); createUserWithEmailAndPassword(auth, email, password).catch(err => { errorDiv.textContent = 'Error: ' + err.message; errorDiv.classList.remove('hidden'); }); });
+        document.getElementById('show-register').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('login-form').classList.add('hidden'); document.getElementById('register-form').classList.remove('hidden'); });
+        document.getElementById('show-login').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('register-form').classList.add('hidden'); document.getElementById('login-form').classList.remove('hidden'); });
+        document.getElementById('logout-button').addEventListener('click', () => signOut(auth));
         document.querySelector('nav').addEventListener('click', (e) => { e.preventDefault(); const l = e.target.closest('a'); if (!l) return; const vI = l.id.replace('nav-', 'view-'); document.querySelectorAll('.view').forEach(v => v.classList.add('hidden')); document.getElementById(vI).classList.remove('hidden'); document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active')); l.classList.add('active'); state.currentView = l.id.replace('nav-', ''); renderAll(); });
         document.getElementById('prev-month').addEventListener('click', () => { state.currentDate = state.currentDate.subtract(1, 'month'); renderDashboard(); });
         document.getElementById('next-month').addEventListener('click', () => { state.currentDate = state.currentDate.add(1, 'month'); renderDashboard(); });
         fab.addEventListener('click', () => { if (state.currentView === 'accounts') openAccountModal(); else openTransactionModal(); });
-        transactionModal.querySelector('#cancel-transaction').addEventListener('click', closeTransactionModal);
-        transactionModal.querySelector('#transaction-form').addEventListener('submit', handleTransactionSubmit);
-        accountModal.querySelector('#cancel-account').addEventListener('click', closeAccountModal);
-        accountModal.querySelector('#account-type').addEventListener('change', (e) => updateAccountSpecificFields(e.target.value));
-        accountModal.querySelector('#account-form').addEventListener('submit', (e) => { e.preventDefault(); const type = accountModal.querySelector('#account-type').value; const aD = { name: accountModal.querySelector('#account-name').value, type: type }; if (type === 'Tarjeta de Crédito') { aD.limit = parseFloat(accountModal.querySelector('#account-limit').value) || 0; aD.corte = parseInt(accountModal.querySelector('#account-corte').value) || 0; aD.pago = parseInt(accountModal.querySelector('#account-pago').value) || 0; } else { aD.balance = parseFloat(accountModal.querySelector('#account-balance').value) || 0; } const aId = accountModal.querySelector('#account-id').value; if (aId) { const i = state.accounts.findIndex(a => a.id === aId); state.accounts[i] = { ...aD, id: aId }; } else { aD.id = crypto.randomUUID(); state.accounts.push(aD); } saveDatabase(); renderAll(); closeAccountModal(); });
-        appView.addEventListener('click', (e) => { const eT = e.target.closest('.edit-transaction'), dT = e.target.closest('.delete-transaction'), eA = e.target.closest('.edit-account'), dA = e.target.closest('.delete-account'); if (eT) openTransactionModal(eT.dataset.id); if (dT) { state.transactions = state.transactions.filter(t => t.id !== dT.dataset.id); saveDatabase(); renderAll(); } if (eA) openAccountModal(eA.dataset.id); if (dA) { state.accounts = state.accounts.filter(a => a.id !== dA.dataset.id); saveDatabase(); renderAll(); } });
+        document.getElementById('transaction-modal').querySelector('#cancel-transaction').addEventListener('click', closeTransactionModal);
+        document.getElementById('transaction-modal').querySelector('#transaction-form').addEventListener('submit', handleTransactionSubmit);
+        document.getElementById('account-modal').querySelector('#cancel-account').addEventListener('click', closeAccountModal);
+        document.getElementById('account-modal').querySelector('#account-type').addEventListener('change', (e) => updateAccountSpecificFields(e.target.value));
+        document.getElementById('account-modal').querySelector('#account-form').addEventListener('submit', async (e) => { e.preventDefault(); const type = document.getElementById('account-modal').querySelector('#account-type').value; const aD = { name: document.getElementById('account-modal').querySelector('#account-name').value, type: type }; if (type === 'Tarjeta de Crédito') { aD.limit = parseFloat(document.getElementById('account-modal').querySelector('#account-limit').value) || 0; aD.corte = parseInt(document.getElementById('account-modal').querySelector('#account-corte').value) || 0; aD.pago = parseInt(document.getElementById('account-modal').querySelector('#account-pago').value) || 0; } else { aD.balance = parseFloat(document.getElementById('account-modal').querySelector('#account-balance').value) || 0; } const aId = document.getElementById('account-modal').querySelector('#account-id').value; const userId = state.currentUser.uid; if (aId) { await updateDoc(doc(db, `users/${userId}/accounts/${aId}`), aD); } else { await addDoc(collection(db, `users/${userId}/accounts`), aD); } closeAccountModal(); });
+        appView.addEventListener('click', async (e) => { const eT = e.target.closest('.edit-transaction'), dT = e.target.closest('.delete-transaction'), eA = e.target.closest('.edit-account'), dA = e.target.closest('.delete-account'); const userId = state.currentUser.uid; if (eT) openTransactionModal(eT.dataset.id); if (dT) await deleteDoc(doc(db, `users/${userId}/transactions/${dT.dataset.id}`)); if (eA) openAccountModal(eA.dataset.id); if (dA) await deleteDoc(doc(db, `users/${userId}/accounts/${dA.dataset.id}`)); });
 
-        showLoginScreen();
         lucide.createIcons();
     });
     </script>
