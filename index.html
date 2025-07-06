@@ -106,12 +106,12 @@
         // CONFIGURACIÓN DE FIREBASE
         // =================================================================
         const firebaseConfig = {
-            apiKey: "AIzaSyAGN_V-iXrNNeW8VvVX5uRHp_N7QEvIBV4",
-            authDomain: "finance-app-de-javier.firebaseapp.com",
-            projectId: "finance-app-de-javier",
-            storageBucket: "finance-app-de-javier.appspot.com",
-            messagingSenderId: "27767063795",
-            appId: "1:27767063795:web:0a4889fedf848807afa386"
+            apiKey: "AIzaSyB0Z4Bzjwc9jYKFpzQHSpbXgZMK5V2w0Aw",
+            authDomain: "finance-app-final.firebaseapp.com",
+            projectId: "finance-app-final",
+            storageBucket: "finance-app-final.appspot.com",
+            messagingSenderId: "970539994396",
+            appId: "1:970539994396:web:e6195621c73d8aba6cfed9"
         };
 
         // =================================================================
@@ -134,19 +134,12 @@
         dayjs.extend(dayjs_plugin_timezone);
 
         // =================================================================
-        // SELECTORES DEL DOM
-        // =================================================================
-        const authView = document.getElementById('auth-view');
-        const appView = document.getElementById('app-view');
-        const fab = document.getElementById('fab');
-
-        // =================================================================
         // LÓGICA DE VISUALIZACIÓN
         // =================================================================
         function showLoginScreen() {
-            appView.style.display = 'none';
-            fab.classList.add('hidden');
-            authView.style.display = 'flex';
+            document.getElementById('app-view').style.display = 'none';
+            document.getElementById('fab').classList.add('hidden');
+            document.getElementById('auth-view').style.display = 'flex';
             state.unsubs.forEach(unsub => unsub());
             state.unsubs = [];
         }
@@ -154,9 +147,9 @@
         function showAppScreen(user) {
             state.currentUser = user;
             document.getElementById('userEmailDisplay').textContent = user.email;
-            authView.style.display = 'none';
-            appView.style.display = 'block';
-            fab.classList.remove('hidden');
+            document.getElementById('auth-view').style.display = 'none';
+            document.getElementById('app-view').style.display = 'block';
+            document.getElementById('fab').classList.remove('hidden');
             
             checkAndSeedInitialData(user.uid);
             setupRealtimeListeners(user.uid);
